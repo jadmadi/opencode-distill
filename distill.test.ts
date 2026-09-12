@@ -66,6 +66,16 @@ describe("parseCandidates", () => {
     expect(parseCandidates('Here you go:\n[{"name":"x","purpose":"y"}]\nDone.')).toHaveLength(1)
   })
 
+  test("does not let a non-JSON fence shadow a real array", () => {
+    expect(parseCandidates('Example:\n```\nplain text\n```\n[{"name":"x","purpose":"y"}]')).toHaveLength(1)
+    expect(parseCandidates('[{"name":"x","purpose":"y"}]\n```\nplain text\n```')).toHaveLength(1)
+  })
+
+  test("ignores brackets inside strings", () => {
+    expect(parseCandidates('[{"name":"x","purpose":"close ] tag"}]')).toHaveLength(1)
+    expect(parseCandidates('[{"name":"x","purpose":"open [ tag"}]')).toHaveLength(1)
+  })
+
   test("returns nothing for bad input", () => {
     expect(parseCandidates("no json here")).toEqual([])
     expect(parseCandidates("[not json]")).toEqual([])
@@ -99,7 +109,7 @@ describe("renderArtifact", () => {
   test("escapes a tricky purpose", () => {
     const purpose = 'ends with \\ and says "hi"'
     const text = renderArtifact({ kind: "command", name: "x", purpose, steps: [], confidence: "low" })
-    expect(text).toContain(`description: ${JSON.stringify(purpose)}`)
+    expect(text).toContain('description: "ends with \\\\ and says \\"hi\\""')
   })
 })
 

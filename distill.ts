@@ -50,20 +50,51 @@ function candidatePrompt(transcript: string): string {
   ].join("\n")
 }
 
-function extractJson(raw: string): string | undefined {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  if (fenced?.[1]) return fenced[1].trim()
-  const start = raw.indexOf("[")
-  if (start === -1) return undefined
+function isArray(text: string): boolean {
+  try {
+    return Array.isArray(JSON.parse(text))
+  } catch {
+    return false
+  }
+}
+
+// Every balanced bracket pair at depth zero, ignoring brackets inside strings.
+function scanArrays(text: string): string[] {
+  const found: string[] = []
+  let start = -1
   let depth = 0
-  for (let index = start; index < raw.length; index++) {
-    const char = raw[index]
-    if (char === "[") depth += 1
-    else if (char === "]") {
+  let inString = false
+  let escaped = false
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (char === "\\") escaped = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') {
+      inString = true
+    } else if (char === "[") {
+      if (depth === 0) start = index
+      depth += 1
+    } else if (char === "]" && depth > 0) {
       depth -= 1
-      if (depth === 0) return raw.slice(start, index + 1)
+      if (depth === 0 && start !== -1) {
+        found.push(text.slice(start, index + 1))
+        start = -1
+      }
     }
   }
+  return found
+}
+
+function extractJson(raw: string): string | undefined {
+  // A fenced block is used only when it actually parses, so a non-JSON fence
+  // does not shadow a real array elsewhere in the text.
+  const fences = [...raw.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)].map((match) => match[1].trim())
+  for (const fence of fences) if (isArray(fence)) return fence
+  for (const candidate of scanArrays(raw)) if (isArray(candidate)) return candidate
   return undefined
 }
 
