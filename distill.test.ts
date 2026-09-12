@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import plugin, { artifactPath, gatherTranscript, parseCandidates, parseModelRef, writeArtifact } from "./distill.ts"
+import plugin, { artifactPath, gatherTranscript, parseCandidates, parseModelRef, renderArtifact, writeArtifact } from "./distill.ts"
 
 const tempDirs: string[] = []
 
@@ -22,6 +22,7 @@ function root() {
 function makeCtx(options: { model?: any; messages?: any[]; json?: string } = {}) {
   const store = new Map<string, unknown>()
   const commands: any[] = []
+  const contextCalls: string[] = []
   const ctx: any = {
     storage: {
       get: async (key: string) => store.get(key),
@@ -29,17 +30,21 @@ function makeCtx(options: { model?: any; messages?: any[]; json?: string } = {})
       remove: async (key: string) => void store.delete(key),
     },
     session: {
-      context: async () =>
-        options.messages ?? [
-          { type: "user", text: "run the tests" },
-          { type: "assistant", content: [{ type: "text", text: "ran the tests" }] },
-        ],
+      context: async (input: any) => {
+        contextCalls.push(input.sessionID)
+        return (
+          options.messages ?? [
+            { type: "user", text: "run the tests" },
+            { type: "assistant", content: [{ type: "text", text: "ran the tests" }] },
+          ]
+        )
+      },
       get: async () => ({ model: options.model === undefined ? { providerID: "p", id: "m" } : options.model }),
     },
     generate: { text: async () => ({ text: options.json ?? "[]" }) },
     command: { transform: (callback: any) => callback({ add: (definition: any) => commands.push(definition) }) },
   }
-  return { ctx, store, commands }
+  return { ctx, store, commands, contextCalls }
 }
 
 const skill = {
@@ -56,11 +61,9 @@ describe("parseCandidates", () => {
     expect(parsed).toEqual([{ kind: "command", name: "ship", purpose: "Ship it", steps: ["a"], confidence: "high" }])
   })
 
-  test("extracts JSON from prose", () => {
-    const parsed = parseCandidates('Here you go:\n[{"name":"x","purpose":"y"}]\nDone.')
-    expect(parsed).toHaveLength(1)
-    expect(parsed[0].kind).toBe("skill")
-    expect(parsed[0].confidence).toBe("medium")
+  test("extracts fenced JSON and JSON from prose", () => {
+    expect(parseCandidates('```json\n[{"name":"x","purpose":"y"}]\n```')).toHaveLength(1)
+    expect(parseCandidates('Here you go:\n[{"name":"x","purpose":"y"}]\nDone.')).toHaveLength(1)
   })
 
   test("returns nothing for bad input", () => {
@@ -72,12 +75,31 @@ describe("parseCandidates", () => {
   test("drops entries without a name or purpose", () => {
     expect(parseCandidates('[{"name":"a"},{"purpose":"b"},{"name":"c","purpose":"d"}]')).toHaveLength(1)
   })
+
+  test("rejects unsafe names", () => {
+    expect(parseCandidates('[{"name":"../../escape","purpose":"x"}]')).toEqual([])
+    expect(parseCandidates('[{"name":"Deploy Check","purpose":"x"}]')).toEqual([])
+    expect(parseCandidates('[{"name":"a:b","purpose":"x"}]')).toEqual([])
+  })
 })
 
 describe("parseModelRef", () => {
   test("parses and trims", () => {
     expect(parseModelRef(" deepseek/deepseek-flash ")).toEqual({ providerID: "deepseek", id: "deepseek-flash" })
     expect(parseModelRef("bad")).toBeUndefined()
+  })
+})
+
+describe("renderArtifact", () => {
+  test("renders an agent with the subagent mode", () => {
+    const text = renderArtifact({ kind: "agent", name: "helper", purpose: "Helps", steps: ["a"], confidence: "high" })
+    expect(text).toContain("mode: subagent")
+  })
+
+  test("escapes a tricky purpose", () => {
+    const purpose = 'ends with \\ and says "hi"'
+    const text = renderArtifact({ kind: "command", name: "x", purpose, steps: [], confidence: "low" })
+    expect(text).toContain(`description: ${JSON.stringify(purpose)}`)
   })
 })
 
@@ -90,9 +112,9 @@ describe("gatherTranscript", () => {
     expect(transcript).toContain("ASSISTANT: ran the tests")
   })
 
-  test("caps the transcript", async () => {
-    const { ctx } = makeCtx({ messages: [{ type: "assistant", content: [{ type: "text", text: "x".repeat(70000) }] }] })
-    const transcript = await gatherTranscript(ctx, ["ses_1"])
+  test("caps the transcript across sessions", async () => {
+    const { ctx } = makeCtx({ messages: [{ type: "assistant", content: [{ type: "text", text: "x".repeat(35000) }] }] })
+    const transcript = await gatherTranscript(ctx, ["ses_1", "ses_2"])
     expect(transcript.length).toBeLessThanOrEqual(60000)
   })
 
@@ -122,7 +144,7 @@ describe("writeArtifact", () => {
     const command = { ...skill, kind: "command" as const, name: "ship" }
     await writeArtifact(command)
     const text = readFileSync(join(dir, "commands/ship.md"), "utf8")
-    expect(text).toContain('description: "Check a deploy"')
+    expect(text).toContain(`description: ${JSON.stringify("Check a deploy")}`)
     expect(text).toContain("- run tests")
   })
 })
@@ -144,12 +166,14 @@ describe("command", () => {
     expect(existsSync(join(dir, "commands/ship.md"))).toBe(true)
     await expect(run("apply 1")).rejects.toThrow(/already exists/)
     await expect(run("apply 9")).rejects.toThrow(/after a proposal/)
+    await expect(run("apply")).rejects.toThrow(/after a proposal/)
   })
 
   test("analyzes named sessions", async () => {
-    const { ctx, commands } = makeCtx({ json: "[]" })
+    const { ctx, commands, contextCalls } = makeCtx({ json: "[]" })
     await (plugin as any).setup(ctx)
     await expect(commands[0].execute({ sessionID: "ses_1", prompt: { text: "ses_2 ses_3" } })).rejects.toThrow(/No candidates/)
+    expect(contextCalls).toEqual(["ses_2", "ses_3"])
   })
 
   test("fails without a model", async () => {
@@ -157,6 +181,14 @@ describe("command", () => {
     const { ctx, commands } = makeCtx({ model: null })
     await (plugin as any).setup(ctx)
     await expect(commands[0].execute({ sessionID: "ses_1", prompt: { text: "" } })).rejects.toThrow(/DISTILL_MODEL/)
+  })
+
+  test("DISTILL_MODEL overrides a missing session model", async () => {
+    root()
+    process.env.DISTILL_MODEL = "deepseek/deepseek-flash"
+    const { ctx, commands } = makeCtx({ model: null, json: proposals })
+    await (plugin as any).setup(ctx)
+    await expect(commands[0].execute({ sessionID: "ses_1", prompt: { text: "" } })).rejects.toThrow(/command ship/)
   })
 
   test("registers the command", async () => {

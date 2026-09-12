@@ -50,13 +50,31 @@ function candidatePrompt(transcript: string): string {
   ].join("\n")
 }
 
+function extractJson(raw: string): string | undefined {
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fenced?.[1]) return fenced[1].trim()
+  const start = raw.indexOf("[")
+  if (start === -1) return undefined
+  let depth = 0
+  for (let index = start; index < raw.length; index++) {
+    const char = raw[index]
+    if (char === "[") depth += 1
+    else if (char === "]") {
+      depth -= 1
+      if (depth === 0) return raw.slice(start, index + 1)
+    }
+  }
+  return undefined
+}
+
+const NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/
+
 function parseCandidates(text: unknown): Candidate[] {
   const raw = typeof text === "string" ? text : ""
-  const start = raw.indexOf("[")
-  const end = raw.lastIndexOf("]")
-  if (start === -1 || end === -1 || end < start) return []
+  const json = extractJson(raw)
+  if (!json) return []
   try {
-    const parsed = JSON.parse(raw.slice(start, end + 1))
+    const parsed = JSON.parse(json)
     if (!Array.isArray(parsed)) return []
     return parsed
       .filter((item) => item && typeof item === "object")
@@ -67,7 +85,9 @@ function parseCandidates(text: unknown): Candidate[] {
         steps: Array.isArray(item.steps) ? item.steps.filter((step: unknown) => typeof step === "string") : [],
         confidence: CONFIDENCES.includes(item.confidence) ? item.confidence : ("medium" as Candidate["confidence"]),
       }))
-      .filter((candidate) => candidate.name && candidate.purpose)
+      // A name becomes a path segment and a frontmatter value, so only a safe
+      // kebab-case name is accepted. This blocks path traversal and colons.
+      .filter((candidate) => candidate.name && candidate.purpose && NAME_PATTERN.test(candidate.name))
   } catch {
     return []
   }
@@ -100,7 +120,7 @@ async function gatherTranscript(ctx: any, sessionIDs: string[]): Promise<string>
     parts.push(block)
     used += block.length
   }
-  return parts.join("\n\n")
+  return parts.join("\n\n").slice(0, CAP)
 }
 
 async function resolveModel(ctx: any, sessionID: string): Promise<{ providerID: string; id: string } | undefined> {
@@ -118,12 +138,12 @@ function artifactPath(candidate: Candidate): string {
 }
 
 function renderArtifact(candidate: Candidate): string {
-  const purpose = candidate.purpose.replace(/"/g, "'")
+  const description = JSON.stringify(candidate.purpose)
   if (candidate.kind === "skill") {
     return [
       "---",
       `name: ${candidate.name}`,
-      `description: "${purpose}"`,
+      `description: ${description}`,
       "---",
       "",
       candidate.purpose,
@@ -136,7 +156,7 @@ function renderArtifact(candidate: Candidate): string {
   if (candidate.kind === "command") {
     return [
       "---",
-      `description: "${purpose}"`,
+      `description: ${description}`,
       "---",
       "",
       candidate.purpose,
@@ -147,7 +167,7 @@ function renderArtifact(candidate: Candidate): string {
   }
   return [
     "---",
-    `description: "${purpose}"`,
+    `description: ${description}`,
     "mode: subagent",
     "---",
     "",
@@ -184,8 +204,8 @@ const plugin = {
           const text = typeof prompt?.text === "string" ? prompt.text.trim() : ""
           const lower = text.toLowerCase()
 
-          if (lower.startsWith("apply ")) {
-            const index = Number(text.slice(6).trim())
+          if (lower === "apply" || lower.startsWith("apply ")) {
+            const index = Number(text.replace(/^apply\s*/i, "").trim())
             const stored = await ctx.storage.get(`distill/${sessionID}`)
             const candidates = Array.isArray(stored) ? (stored as Candidate[]) : []
             if (!Number.isInteger(index) || index < 1 || index > candidates.length) {
