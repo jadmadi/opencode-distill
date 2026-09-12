@@ -1,14 +1,37 @@
 ---
 feature: distill
-status: in-progress
-updated: 2026-09-12
+status: delivered
+updated: 2026-09-13
 branch: feat/distill
-commits:
+commits: 4d12623..54955c0
 ---
 
 # Distill
 
 ## Report
+
+**What was built** - A single-file OpenCode V2 plugin that reads session history,
+asks a model for repeated multi-step workflows, and proposes skills, commands, or
+subagents. `/distill` analyzes the current session, `/distill <id> ...` analyzes
+named ones, `/distill list` shows the last proposal, and `/distill apply <n>`
+writes the chosen artifact under `DISTILL_ROOT` (default `~/.config/opencode`).
+Names must be kebab-case, and an existing file is never overwritten.
+`DISTILL_MODEL` overrides the model.
+
+**Verification** - `bun test`: 20 pass, 0 fail, 43 assertions. Live: the command
+registered; an empty-session analysis returned "No candidates found." and a bare
+apply returned the usage error. Three review rounds covered one blocking item
+plus several mediums and lows; all are resolved.
+
+**Journey log**
+
+1. The plugin session domain has no `list`, so distill analyzes the current
+   session or ids the user names.
+2. A model-chosen name could escape `DISTILL_ROOT`. Names are now restricted to
+   kebab-case, which also keeps frontmatter safe.
+3. The first extractor rewarded the wrong input: a non-JSON fence shadowed a real
+   array, and brackets inside strings dropped valid JSON. It now validates each
+   fenced block and scans balanced brackets outside strings.
 
 ## [S1] Problem
 
@@ -49,14 +72,14 @@ A command proposes reusable artifacts from session history.
 - [x] T0: spike whether the plugin can list recent sessions - result: it cannot.
   The plugin session domain has no `list` (create, get, context, prompt, and
   others only). Distill analyzes the current session or explicitly named ids.
-- [ ] T1: transcript gathering with a size cap - acceptance: a fake-context test
+- [x] T1: transcript gathering with a size cap - acceptance: a fake-context test
       collects the current session and named ids and truncates at the cap
       (covers: S2)
-- [ ] T2: pattern detection and candidate parsing - acceptance: a stub model
+- [x] T2: pattern detection and candidate parsing - acceptance: a stub model
       result parses into skills, commands, and agents with confidence (covers:
       S2; depends: T1)
-- [ ] T3: the apply step and the write, with duplicate detection - acceptance: a
+- [x] T3: the apply step and the write, with duplicate detection - acceptance: a
       test approves one candidate, writes the file, and skips a duplicate
       (covers: S2; depends: T2)
-- [ ] T4: README and NOTICE - acceptance: both files exist and name MiMoCode's
+- [x] T4: README and NOTICE - acceptance: both files exist and name MiMoCode's
       distill feature (covers: S2; depends: T3)
