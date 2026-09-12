@@ -1,0 +1,26 @@
+{
+  "name": "opencode-distill",
+  "version": "0.1.0",
+  "description": "OpenCode V2 plugin that distills repeated workflows into reusable artifacts",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "bun test"
+  },
+  "exports": {
+    ".": "./distill.ts"
+  },
+  "files": [
+    "distill.ts"
+  ],
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "skills",
+    "distill"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jadmadi/opencode-distill.git"
+  }
+}

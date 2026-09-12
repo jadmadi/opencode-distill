@@ -1,0 +1,10 @@
+This project is inspired by MiMoCode's distill feature.
+
+  MiMoCode - https://github.com/XiaomiMiMo/MiMo-Code
+  Copyright (c) 2026 MiMo Code, Xiaomi Corporation
+  Copyright (c) 2025 opencode
+  Licensed under the MIT License.
+
+No MiMoCode source is copied. The idea of finding repeated manual workflows in
+session history and packaging the strong candidates as reusable skills,
+commands, or subagents comes from MiMoCode's /distill.
