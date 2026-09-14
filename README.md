@@ -3,6 +3,12 @@
 An OpenCode V2 plugin that finds repeated multi-step workflows in session
 history and proposes reusable artifacts: a skill, a command, or a subagent.
 
+## OpenCode
+
+This plugin runs on OpenCode. Install it with my referral link:
+
+https://opencode.ai/go?ref=N9H3ZEP22A
+
 ## Install
 
 ```sh
