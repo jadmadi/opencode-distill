@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import plugin, { artifactPath, gatherTranscript, parseCandidates, parseModelRef, renderArtifact, writeArtifact } from "./distill.ts"
+import plugin, { artifactPath, gatherTranscript, parseCandidates, parseModelRef, renderArtifact, writeArtifact, VERSION } from "./distill.ts"
 
 const tempDirs: string[] = []
 
@@ -205,5 +205,12 @@ describe("command", () => {
     const { ctx, commands } = makeCtx()
     await (plugin as any).setup(ctx)
     expect(commands.map((entry) => entry.name)).toEqual(["distill"])
+  })
+})
+
+describe("version", () => {
+  test("VERSION matches package.json", async () => {
+    const pkg = (await Bun.file(new URL("./package.json", import.meta.url)).json()) as { version: string }
+    expect(VERSION).toBe(pkg.version)
   })
 })

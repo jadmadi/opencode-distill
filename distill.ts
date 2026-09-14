@@ -10,6 +10,8 @@
 // The runtime does not resolve @opencode/plugin, so this file exports a plain
 // { id, setup } object.
 
+const VERSION = "0.1.0"
+
 type Kind = "skill" | "command" | "agent"
 
 interface Candidate {
@@ -251,7 +253,7 @@ const plugin = {
           if (lower === "list") {
             const stored = await ctx.storage.get(`distill/${sessionID}`)
             const candidates = Array.isArray(stored) ? (stored as Candidate[]) : []
-            throw new Error(describe(candidates))
+            throw new Error(`${describe(candidates)}\ndistill ${VERSION}`)
           }
 
           const named = text.split(/\s+/).filter((value) => value.startsWith("ses"))
@@ -266,12 +268,12 @@ const plugin = {
           })
           const candidates = parseCandidates(result?.text)
           await ctx.storage.set(`distill/${sessionID}`, candidates)
-          throw new Error(describe(candidates))
+          throw new Error(`${describe(candidates)}\ndistill ${VERSION}`)
         },
       })
     })
   },
 }
 
-export { artifactPath, gatherTranscript, parseCandidates, parseModelRef, renderArtifact, writeArtifact }
+export { artifactPath, gatherTranscript, parseCandidates, parseModelRef, renderArtifact, writeArtifact, VERSION }
 export default plugin
