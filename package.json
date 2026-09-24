@@ -1,6 +1,6 @@
 {
   "name": "opencode-distill",
-  "version": "0.1.2",
+  "version": "2026.9.0",
   "description": "OpenCode V2 plugin that distills repeated workflows into reusable artifacts",
   "type": "module",
   "license": "MIT",
