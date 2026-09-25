@@ -6,7 +6,7 @@ Guidance for agents working in this repository.
 
 An OpenCode V2 plugin (`distill.ts`) that reads session history, asks a model for
 repeated multi-step workflows, and proposes skills, commands, or subagents. It
-writes only what the user approves. No build step, no dependencies, MIT.
+writes only what the user approves. No build step, no dependencies, AGPL-3.0-only.
 
 ## Local development
 
