@@ -4,13 +4,15 @@
 // proposes skills, commands, or subagents. Nothing is written until the user
 // runs `/distill apply <n>`, and an existing artifact is never overwritten.
 //
-// The plugin session domain has no `list`, so distill analyzes the current
-// session by default and any session ids the user names.
+// Distill analyzes the current session by default and any session ids the user
+// names.
 //
-// The runtime does not resolve @opencode/plugin, so this file exports a plain
-// { id, setup } object.
+// The host provides @opencode/plugin at runtime, so this file uses
+// Plugin.define.
 
-const VERSION = "2026.9.0"
+import { Plugin } from "@opencode/plugin"
+
+const VERSION = "2026.10.0"
 
 type Kind = "skill" | "command" | "agent"
 
@@ -225,7 +227,7 @@ function describe(candidates: Candidate[]): string {
     .join("\n")
 }
 
-const plugin = {
+const plugin = Plugin.define({
   id: "distill",
   async setup(ctx: any) {
     await ctx.command.transform((editor: any) => {
@@ -273,7 +275,7 @@ const plugin = {
       })
     })
   },
-}
+})
 
 export { artifactPath, gatherTranscript, parseCandidates, parseModelRef, renderArtifact, writeArtifact, VERSION }
 export default plugin

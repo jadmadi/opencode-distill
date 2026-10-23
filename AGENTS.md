@@ -30,7 +30,9 @@ ids the user names, each read with `ctx.session.context`.
 
 ## Hard constraints
 
-- Do not import `@opencode/plugin`. Export a plain `{ id, setup }` object.
+- Import `{ Plugin } from "@opencode/plugin"` and export
+  `Plugin.define({ id, setup })`. The host provides the module at runtime; do
+  not add it as a package dependency. Tests stub it in `test-preload.ts`.
 - Keep the plugin dependency-free. Use Bun globals for file access.
 - Never write an artifact without an explicit `/distill apply`.
 - Never overwrite an existing artifact; report it as a duplicate.
